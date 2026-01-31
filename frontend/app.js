@@ -229,6 +229,11 @@ document.querySelectorAll('.tab').forEach(tab => {
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     tab.classList.add('active');
     document.getElementById(tabName + 'Tab').classList.add('active');
+
+    // Clear generic buttons when switching to contextual tab
+    if (tabName === 'contextual') {
+      genericButtons.innerHTML = '';
+    }
   });
 });
 
