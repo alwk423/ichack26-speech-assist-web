@@ -7,49 +7,128 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <header>
-    <h1>Quick Reply Assistant</h1>
-    <div class="row">
-      <label>
-        Context:
-        <select id="context">
-          <option value="generic">Generic</option>
-          <option value="transport">Transport</option>
-          <option value="cafe">Café</option>
-          <option value="doctor">Doctor</option>
-        </select>
-      </label>
+  <!-- Page 1: Context Selection -->
+  <div id="contextPage" class="page active">
+    <div class="page-container">
+      <div class="header-section">
+        <h1>Quick Reply Assistant</h1>
+        <p class="subtitle">Select your situation</p>
+      </div>
 
-      <label class="toggle">
-        <input type="checkbox" id="ttsToggle" checked />
-        Speak replies
-      </label>
+      <div class="context-grid">
+        <button class="context-btn" data-context="generic">
+          <span class="context-icon">💬</span>
+          <span class="context-label">General Chat</span>
+        </button>
+        <button class="context-btn" data-context="transport">
+          <span class="context-icon">🚌</span>
+          <span class="context-label">Transport</span>
+        </button>
+        <button class="context-btn" data-context="cafe">
+          <span class="context-icon">☕</span>
+          <span class="context-label">Café</span>
+        </button>
+        <button class="context-btn" data-context="doctor">
+          <span class="context-icon">⚕️</span>
+          <span class="context-label">Doctor</span>
+        </button>
+      </div>
 
-      <label class="toggle">
-        <input type="checkbox" id="bigToggle" />
-        Big text
-      </label>
+      <div class="settings-section">
+        <label class="toggle-label">
+          <input type="checkbox" id="ttsToggle" checked />
+          <span>Speak replies aloud</span>
+        </label>
+        <label class="toggle-label">
+          <input type="checkbox" id="bigToggle" />
+          <span>Large text mode</span>
+        </label>
+      </div>
     </div>
-  </header>
+  </div>
 
-  <main>
-    <div id="chat" class="chat"></div>
+  <!-- Page 2: Recording & Speech-to-Text -->
+  <div id="recordingPage" class="page">
+    <div class="page-container">
+      <button class="back-btn" id="backFromRecording">← Back</button>
+      
+      <div class="header-section">
+        <h1>Record Your Message</h1>
+        <p class="subtitle context-display" id="contextDisplay"></p>
+      </div>
 
-    <div class="composer">
-      <input id="msgInput" type="text" placeholder="Type a message…" />
-      <button id="micBtn" type="button" title="Speak (English)">🎤</button>
-      <button id="sendBtn">Send</button>
+      <div class="recording-section">
+        <button id="recordBtn" class="record-btn">
+          <span class="record-icon">🎤</span>
+          <span class="record-text">Press to Record</span>
+        </button>
+        <div id="recordingStatus" class="recording-status"></div>
+        <div id="transcriptDisplay" class="transcript-display"></div>
+      </div>
+
+      <div class="manual-input-section">
+        <p class="manual-label">Or type your message:</p>
+        <div class="input-group">
+          <input id="manualInput" type="text" placeholder="Type here..." class="manual-input" />
+          <button id="manualSendBtn" class="send-btn">Send</button>
+        </div>
+      </div>
     </div>
+  </div>
 
-    <div id="status" class="status"></div>
+  <!-- Page 3: Reply Options -->
+  <div id="optionsPage" class="page">
+    <div class="page-container">
+      <button class="back-btn" id="backFromOptions">← Back</button>
+      
+      <div class="header-section">
+        <h1>Choose Your Reply</h1>
+        <p class="subtitle">Select one of the suggested replies</p>
+      </div>
 
-    <div id="suggestions" class="suggestions"></div>
+      <div class="user-message-display" id="userMessageDisplay"></div>
 
-    <div class="manual-reply">
-      <input id="manualReplyInput" type="text" placeholder="Type your own reply…" />
-      <button id="manualReplySendBtn">Send reply</button>
+      <div id="optionsStatus" class="status"></div>
+
+      <div class="options-grid" id="optionsGrid">
+        <!-- Options will be inserted here -->
+      </div>
+
+      <div class="manual-reply-section">
+        <p class="manual-label">Or send a custom reply:</p>
+        <div class="input-group">
+          <input id="customReplyInput" type="text" placeholder="Type your own reply..." class="manual-input" />
+          <button id="customReplySendBtn" class="send-btn">Send</button>
+        </div>
+      </div>
     </div>
-  </main>
+  </div>
+
+  <!-- Page 4: Conversation -->
+  <div id="conversationPage" class="page">
+    <div class="page-container conversation-container">
+      <button class="back-btn" id="newConversation">← New Conversation</button>
+      
+      <div class="header-section">
+        <h1>Conversation</h1>
+        <p class="subtitle context-display" id="conversationContextDisplay"></p>
+      </div>
+
+      <div id="conversationChat" class="chat-display"></div>
+
+      <div id="conversationStatus" class="status"></div>
+
+      <div class="input-group conversation-input">
+        <button id="conversationRecordBtn" class="record-btn-small">🎤</button>
+        <input id="conversationInput" type="text" placeholder="Type a message..." class="manual-input" />
+        <button id="conversationSendBtn" class="send-btn">Send</button>
+      </div>
+
+      <div class="options-grid" id="conversationOptionsGrid">
+        <!-- Options will be inserted here -->
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>
