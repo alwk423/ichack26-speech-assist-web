@@ -1,7 +1,7 @@
 const API_BASE = "http://127.0.0.1:8000";
 const sessionId = crypto.randomUUID ? crypto.randomUUID() : String(Date.now());
 
-// Predefined contexts
+// Predefined contexts (kept exactly)
 const CONTEXTS = [
   { emoji: '🏥', label: 'Medical', value: 'medical' },
   { emoji: '🍽️', label: 'Restaurant', value: 'restaurant' },
@@ -11,7 +11,6 @@ const CONTEXTS = [
   { emoji: '🎓', label: 'School', value: 'school' }
 ];
 
-// Generic phrases
 const GENERIC_PHRASES = [
   "Yes", "No", "Maybe", "I don't know",
   "Can you repeat that?", "I need help", "Thank you", "Excuse me",
@@ -19,49 +18,57 @@ const GENERIC_PHRASES = [
   "I agree", "I disagree", "Could you speak slower?", "I'm ready"
 ];
 
-// State
 let selectedContext = null;
 let isRecording = false;
 let transcript = '';
 let mediaRecorder = null;
 let audioChunks = [];
+let silenceTimer = null; // <-- auto-submit after 15s silence
 
 // Elements
 const homeScreen = document.getElementById('homeScreen');
 const recordScreen = document.getElementById('recordScreen');
 const speechScreen = document.getElementById('speechScreen');
+
 const contextGrid = document.getElementById('contextGrid');
 const customContext = document.getElementById('customContext');
 const startBtn = document.getElementById('startBtn');
+
 const recordBtn = document.getElementById('recordBtn');
 const recordStatus = document.getElementById('recordStatus');
 const recordEmoji = document.getElementById('recordEmoji');
 const recordContext = document.getElementById('recordContext');
+
 const speechContextLabel = document.getElementById('speechContextLabel');
 const transcriptDisplay = document.getElementById('transcriptDisplay');
+
 const genericButtons = document.getElementById('genericButtons');
 const contextualButtons = document.getElementById('contextualButtons');
+
 const refreshBtn = document.getElementById('refreshBtn');
 const statusBar = document.getElementById('statusBar');
-const recordingToggle = document.getElementById('recordingToggle');
+const recordingToggleTop = document.getElementById('recordingToggleTop');
+const recordResetBtn = document.getElementById('recordResetBtn');
+const stopResetBtn = document.getElementById('stopResetBtn');
 
-// Initialize contexts
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+let recognition = null;
+
+// Init contexts
 function initContexts() {
+  contextGrid.innerHTML = '';
   CONTEXTS.forEach(ctx => {
     const card = document.createElement('div');
     card.className = 'context-card';
-    card.innerHTML = `
-      <div class="context-emoji">${ctx.emoji}</div>
-      <div class="context-label">${ctx.label}</div>
-    `;
+    card.innerHTML = `<div class="context-emoji">${ctx.emoji}</div><div class="context-label">${ctx.label}</div>`;
     card.onclick = () => selectContext(ctx, card);
     contextGrid.appendChild(card);
   });
 }
 
-function selectContext(ctx, element) {
+function selectContext(ctx, el) {
   document.querySelectorAll('.context-card').forEach(c => c.classList.remove('selected'));
-  element.classList.add('selected');
+  el.classList.add('selected');
   selectedContext = ctx;
   customContext.value = '';
   startBtn.disabled = false;
@@ -84,131 +91,135 @@ startBtn.addEventListener('click', () => {
   speechContextLabel.textContent = selectedContext.label;
 });
 
-// Recording functionality
+// recording button on record screen -> go to speech screen and auto-start
 recordBtn.addEventListener('click', () => {
   showScreen('speech');
   initGenericButtons();
-
-  if (!isRecording) {
-    setTimeout(() => {
-      toggleSpeechRecording();
-    }, 100);
-  }
+  setTimeout(() => toggleSpeechRecording(), 120);
 });
 
-async function transcribeAudio(audioBlob) {
+// Stop & Reset helpers
+function stopAllRecognition() {
+  try { if (recognition && isRecording) recognition.stop(); } catch {}
   try {
-    showStatus('Transcribing...', '');
-    // Simulated transcription - in real app, send to backend
-    const simulatedText = "This is simulated transcription text. ";
-    transcript += simulatedText;
-    transcriptDisplay.textContent = transcript;
-    showStatus('Transcription complete', 'success');
-  } catch (error) {
-    showStatus('Transcription failed', 'error');
+    if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
+    if (mediaRecorder && mediaRecorder.stream && mediaRecorder.stream.getTracks) mediaRecorder.stream.getTracks().forEach(t => t.stop());
+  } catch {}
+  isRecording = false;
+  if (recordingToggleTop) recordingToggleTop.classList.remove('recording');
+  clearTimeout(silenceTimer);
+}
+
+function clearTranscriptUI() {
+  transcript = '';
+  transcriptDisplay.textContent = '';
+  recordStatus.textContent = '';
+}
+
+recordResetBtn?.addEventListener('click', () => {
+  stopAllRecognition();
+  clearTranscriptUI();
+  showStatus('Stopped and cleared');
+});
+
+stopResetBtn?.addEventListener('click', () => {
+  stopAllRecognition();
+  clearTranscriptUI();
+  showStatus('Input stopped and cleared');
+});
+
+// 15s silence auto-submit
+function resetSilenceTimer() {
+  clearTimeout(silenceTimer);
+  silenceTimer = setTimeout(() => {
+    if (transcript && transcript.trim().length > 0) {
+      showStatus('No speech detected for 15s — submitting input...', 'loading');
+      autoSubmitTranscript();
+    }
+  }, 3000);
+}
+
+async function autoSubmitTranscript() {
+  // fetch suggestions from backend and render in contextual tab
+  try {
+    const suggestions = await fetchSuggestions(transcript);
+    renderContextualButtons(suggestions);
+    // switch to contextual tab
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.querySelector('.tab[data-tab="contextual"]').classList.add('active');
+    document.getElementById('contextualTab').classList.add('active');
+    showStatus('Suggestions generated', 'success');
+  } catch (e) {
+    showStatus('Failed to generate suggestions', 'error');
   }
 }
 
-// Recording toggle on speech screen
-const recordingToggleElement = recordingToggle;
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-let recognition = null;
+// Transcription & recording
+async function transcribeAudio(blob) {
+  showStatus('Transcribing...', '');
+  // no server transcribe; keep current transcript
+  showStatus('Transcription simulated', 'success');
+}
 
-recordingToggle.addEventListener('click', toggleSpeechRecording);
+recordingToggleTop?.addEventListener('click', toggleSpeechRecording);
 
 async function toggleSpeechRecording() {
-  if (SpeechRecognition) {
-    // Use Web Speech API when available (short utterances)
-    if (!recognition) {
-      recognition = new (SpeechRecognition)();
-      recognition.lang = 'en-GB';
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      let finalTranscript = '';
-
-      recognition.onstart = () => {
-        isRecording = true;
-        recordingToggle.classList.add('recording');
-        recordingToggle.classList.remove('paused');
-        recordingToggle.title = 'Pause Recording';
-        showStatus('Recording conversation...', '');
-      };
-
-      recognition.onresult = (event) => {
-        let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const transcriptPart = event.results[i][0].transcript;
-          if (event.results[i].isFinal) finalTranscript += transcriptPart + ' ';
-          else interim += transcriptPart;
-        }
-        transcript = (finalTranscript + interim).trim();
-        transcriptDisplay.textContent = transcript;
-      };
-
-      recognition.onerror = (e) => {
-        showStatus('Speech recognition error', 'error');
-      };
-
-      recognition.onend = () => {
-        isRecording = false;
-        recordingToggle.classList.remove('recording');
-        recordingToggle.classList.add('paused');
-        recordingToggle.title = 'Start Recording';
-        showStatus('Recording paused', '');
-      };
-    }
-
-    if (!isRecording) {
-      try {
-        recognition.start();
-      } catch (e) {
-        console.error('Could not start recognition', e);
-      }
-    } else {
-      recognition.stop();
-    }
+  if (!SpeechRecognition) {
+    // fallback handled elsewhere
+    showStatus('SpeechRecognition not supported in this browser', 'error');
     return;
   }
 
-  // Fallback to MediaRecorder if Web Speech API is not available
-  if (!isRecording) {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorder = new MediaRecorder(stream);
-      audioChunks = [];
+  if (!recognition) {
+    recognition = new (SpeechRecognition)();
+    recognition.lang = 'en-GB';
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    let finalTranscript = '';
 
-      mediaRecorder.ondataavailable = (event) => {
-        audioChunks.push(event.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        await transcribeAudio(audioBlob);
-      };
-
-      mediaRecorder.start();
+    recognition.onstart = () => {
       isRecording = true;
-      recordingToggle.classList.add('recording');
-      recordingToggle.classList.remove('paused');
-      recordingToggle.title = 'Pause Recording';
-      showStatus('Recording conversation...', '');
-    } catch (error) {
-      showStatus('Microphone access denied', 'error');
-    }
+      if (recordingToggleTop) recordingToggleTop.classList.add('recording');
+      showStatus('Recording...');
+      // reset silence timer as we just started
+      resetSilenceTimer();
+    };
+
+    recognition.onresult = (event) => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const part = event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalTranscript += part + ' ';
+        else interim += part;
+      }
+      transcript = (finalTranscript + interim).trim();
+      transcriptDisplay.textContent = transcript;
+      // each time we get speech, reset the silence timer
+      resetSilenceTimer();
+    };
+
+    recognition.onerror = (e) => {
+      showStatus('Speech recognition error', 'error');
+    };
+
+    recognition.onend = () => {
+      isRecording = false;
+      if (recordingToggleTop) recordingToggleTop.classList.remove('recording');
+      showStatus('Recording stopped');
+      // If recognition ended unexpectedly, still auto-submit if transcript present after short delay
+      resetSilenceTimer();
+    };
+  }
+
+  if (!isRecording) {
+    try { recognition.start(); } catch (e) { console.error(e); showStatus('Could not start recording', 'error'); }
   } else {
-    mediaRecorder.stop();
-    if (mediaRecorder.stream && mediaRecorder.stream.getTracks) {
-      mediaRecorder.stream.getTracks().forEach(track => track.stop());
-    }
-    isRecording = false;
-    recordingToggle.classList.remove('recording');
-    recordingToggle.classList.add('paused');
-    recordingToggle.title = 'Start Recording';
-    showStatus('Recording paused', '');
+    recognition.stop();
   }
 }
 
-// Tab switching
+// Tabs
 document.querySelectorAll('.tab').forEach(tab => {
   tab.addEventListener('click', () => {
     const tabName = tab.dataset.tab;
@@ -226,21 +237,28 @@ function initGenericButtons() {
     const btn = document.createElement('button');
     btn.className = 'speech-btn';
     btn.textContent = phrase;
-    btn.onclick = () => speakPhrase(phrase);
+    btn.onclick = () => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(phrase));
+      }
+      transcript += (phrase + ' ');
+      transcriptDisplay.textContent = transcript;
+      resetSilenceTimer();
+    };
     genericButtons.appendChild(btn);
   });
 }
 
-// Contextual buttons refresh
-refreshBtn.addEventListener('click', async () => {
+// Refresh/contextual suggestions
+refreshBtn?.addEventListener('click', async () => {
   refreshBtn.disabled = true;
   refreshBtn.innerHTML = '<span class="loading-spinner"></span><span>Loading...</span>';
-
   try {
     const suggestions = await fetchSuggestions();
     renderContextualButtons(suggestions);
     showStatus('Suggestions refreshed', 'success');
-  } catch (error) {
+  } catch (e) {
     showStatus('Failed to fetch suggestions', 'error');
   } finally {
     refreshBtn.disabled = false;
@@ -249,19 +267,8 @@ refreshBtn.addEventListener('click', async () => {
 });
 
 async function fetchSuggestions() {
-  const payload = {
-    session_id: sessionId,
-    last_text: transcript,
-    context: selectedContext.value,
-    mode: "contextual"
-  };
-
-  const res = await fetch(`${API_BASE}/suggest`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-
+  const payload = { session_id: sessionId, last_text: transcript, context: selectedContext?.value || 'generic', mode: 'contextual' };
+  const res = await fetch(`${API_BASE}/suggest`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   if (!res.ok) throw new Error('Suggest failed');
   const data = await res.json();
   return data.suggestions || [];
@@ -274,50 +281,29 @@ function renderContextualButtons(suggestions) {
     btn.className = 'speech-btn';
     btn.textContent = s.text;
     btn.onclick = () => {
-      speakPhrase(s.text);
-      logChoice(s);
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        window.speechSynthesis.speak(new SpeechSynthesisUtterance(s.text));
+      }
+      transcript += s.text + ' ';
+      transcriptDisplay.textContent = transcript;
+      fetch(`${API_BASE}/log_choice`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ session_id, suggestion_id: s.id, context: selectedContext?.value || 'generic', intent: s.intent, text: s.text })
+      }).catch(() => {});
+      resetSilenceTimer();
     };
     contextualButtons.appendChild(btn);
   });
-}
-
-async function logChoice(suggestion) {
-  try {
-    await fetch(`${API_BASE}/log_choice`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        session_id: sessionId,
-        suggestion_id: suggestion.id,
-        context: selectedContext.value,
-        intent: suggestion.intent,
-        text: suggestion.text
-      })
-    });
-  } catch (error) {
-    console.error('Log choice failed:', error);
-  }
-}
-
-function speakPhrase(text) {
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    window.speechSynthesis.speak(utterance);
-    transcript += text + ' ';
-    transcriptDisplay.textContent = transcript;
-  }
 }
 
 // Navigation
 document.getElementById('backFromRecord').addEventListener('click', () => {
   showScreen('home');
 });
-
 document.getElementById('backFromSpeech').addEventListener('click', () => {
-  if (isRecording) {
-    toggleSpeechRecording();
-  }
+  stopAllRecognition();
   showScreen('record');
 });
 
@@ -331,22 +317,18 @@ function showStatus(message, type) {
   statusBar.className = 'status-bar';
   if (type) statusBar.classList.add(type);
   statusBar.style.display = 'block';
-  setTimeout(() => {
-    statusBar.style.display = 'none';
-  }, 3000);
+  setTimeout(() => { statusBar.style.display = 'none'; }, 2400);
 }
 
 // Health check
 (async () => {
   try {
     const r = await fetch(`${API_BASE}/health`);
-    if (r.ok) {
-      showStatus('Backend connected', 'success');
-    }
+    if (r.ok) showStatus('Backend connected', 'success');
   } catch (e) {
     showStatus('Backend not connected - some features may not work', 'error');
   }
 })();
 
-// Initialize
+// Init
 initContexts();

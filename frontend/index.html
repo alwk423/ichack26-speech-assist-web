@@ -27,7 +27,7 @@
   </div>
 
   <div class="screen" id="recordScreen">
-    <button class="back-btn" id="backFromRecord">←</button>
+    <button class="back-btn circle" id="backFromRecord">←</button>
 
     <div class="record-container">
       <div class="context-display">
@@ -38,12 +38,18 @@
       <button class="record-btn" id="recordBtn">🎙️</button>
 
       <div class="record-status" id="recordStatus">Tap to start recording</div>
+
+      <div class="record-controls" style="margin-top:12px;">
+        <button id="recordResetBtn" class="btn-secondary">Stop & Reset</button>
+      </div>
     </div>
   </div>
 
   <div class="screen" id="speechScreen">
     <button class="back-btn" id="backFromSpeech">←</button>
-    <button class="recording-toggle paused" id="recordingToggle" title="Start Recording"></button>
+
+    <!-- Top-left recording toggle (start/stop any time) -->
+    <button id="recordingToggleTop" class="recording-toggle-top" title="Start/Stop Recording"></button>
 
     <div class="header">
       <h1>💬 Speech Assistant</h1>
@@ -52,6 +58,11 @@
 
     <div class="speech-container">
       <div class="transcript-display" id="transcriptDisplay"></div>
+
+      <div class="speech-controls" style="display:flex;gap:10px;margin:12px 0;">
+        <button id="stopResetBtn" class="btn-secondary">Stop & Reset Input</button>
+        <button id="refreshBtn" class="refresh-btn"><span>🔄</span><span>Refresh</span></button>
+      </div>
 
       <div class="tabs">
         <button class="tab active" data-tab="generic">Generic</button>
@@ -65,11 +76,7 @@
       <div class="tab-content" id="contextualTab">
         <div class="buttons-grid" id="contextualButtons"></div>
 
-        <div class="refresh-container">
-          <button class="refresh-btn" id="refreshBtn">
-            <span>🔄</span>
-            <span>Refresh</span>
-          </button>
+        <div class="refresh-container" style="margin-top:12px;">
           <span class="refresh-text">Generate new contextual suggestions based on the conversation</span>
         </div>
       </div>
